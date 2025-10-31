@@ -27,7 +27,7 @@ jobs:
       S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
       
       # This is the name of our Docker image
-      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/secure-devops-demo
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner.toLowerCase() }}/secure-devops-demo
       
     steps:
       - name: Check out repository code
