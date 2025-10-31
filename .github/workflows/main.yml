@@ -1,36 +1,68 @@
-name: Advanced Secure CI Pipeline
+name: Advanced Secure CI Pipeline with Docker
 
 on:
   push:
     branches: [ "main" ]
 
-jobs:
-  build-and-run:
-    runs-on: ubuntu-latest
+# Grant permissions for the pipeline to push images to GHCR
+permissions:
+  contents: read
+  packages: write
 
+jobs:
+  build-push-and-run:
+    runs-on: ubuntu-latest
+    
+    # Define the secrets as environment variables for all steps
+    env:
+      APP_ENV: ${{ secrets.APP_ENV }}
+      DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+      DATABASE_USER: ${{ secrets.DATABASE_USER }}
+      DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+      DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+      S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+      
+      # This is the name of our Docker image
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/secure-devops-demo
+      
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+      # ----------------- NEW DOCKER STEPS -----------------
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
         with:
-          python-version: "3.10"
+          registry: ghcr.io
+          # GITHUB_TOKEN is a built-in secret, you don't need to create it
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:latest # Tag the image as 'latest'
 
-      - name: Run the secure application
-        env:
-          # --- Inject all 10 production secrets ---
-          APP_ENV: ${{ secrets.APP_ENV }}
-          DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
-          DATABASE_USER: ${{ secrets.DATABASE_USER }}
-          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
-          DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
-          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-          STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
-          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
-        run: python app.py
+      # ----------------- NEW RUN STEP -----------------
+      
+      - name: Run the secure container
+        run: |
+          docker run --rm \
+            -e APP_ENV \
+            -e DATABASE_HOST \
+            -e DATABASE_USER \
+            -e DATABASE_PASSWORD \
+            -e DATABASE_NAME \
+            -e JWT_SECRET_KEY \
+            -e STRIPE_API_KEY \
+            -e S3_BUCKET_NAME \
+            -e S3_ACCESS_KEY \
+            -e S3_SECRET_ACCESS_KEY \
+            ${{ env.IMAGE_NAME }}:latest
